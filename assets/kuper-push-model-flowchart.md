@@ -26,17 +26,21 @@ flowchart TD
     
     G --> H[Мерчант отправляет order.in_work]
     H --> I[Купер начинает поиск курьера]
-    I --> J[Мерчант собирает заказ]
-    J --> K[Мерчант отправляет order.assembled]
-    K --> L[Мерчант отправляет order.ready_for_delivery с итоговым составом]
+    I --> J{Курьер найден?}
+    J -->|Да| K[Купер может отправить courier.assigned]
+    J -->|Нет| L[Мерчант продолжает сборку]
+    K --> M[Купер может отправить courier.arrived]
+    M --> L
     
-    L --> M[Купер списывает фактическую сумму с клиента]
-    M --> N[Купер отправляет вебхук order.paid]
-    N --> O[Купер может отправить courier.assigned]
-    O --> P[Купер может отправить courier.arrived]
-    P --> Q[Купер отправляет order.received когда курьер забирает заказ]
-    Q --> R[Купер отправляет order.delivering]
-    R --> S[Купер отправляет order.delivered после доставки]
+    L --> N[Мерчант собирает заказ]
+    N --> O[Мерчант отправляет order.assembled]
+    O --> P[Мерчант отправляет order.ready_for_delivery с итоговым составом]
+    
+    P --> Q[Купер списывает фактическую сумму с клиента]
+    Q --> R[Купер отправляет вебхук order.paid]
+    R --> S[Купер отправляет order.received когда курьер забирает заказ]
+    S --> T[Купер отправляет order.delivering]
+    T --> U[Купер отправляет order.delivered после доставки]
     
     D --> Cancel[Заказ отменен]
     
@@ -48,7 +52,7 @@ flowchart TD
         UpdateHook[order.updated - изменения в заказе]
     end
     
-    S --> End([Заказ завершен])
+    U --> End([Заказ завершен])
     Cancel --> End
     
     style Start fill:#e1f5fe
@@ -56,14 +60,14 @@ flowchart TD
     style Cancel fill:#ffcdd2
     style A fill:#fff3e0
     style H fill:#fff3e0
-    style K fill:#fff3e0
-    style L fill:#fff3e0
-    style N fill:#e8f5e8
-    style O fill:#e8f5e8
-    style P fill:#e8f5e8
-    style Q fill:#e8f5e8
+    style O fill:#fff3e0
+    style P fill:#fff3e0
     style R fill:#e8f5e8
+    style K fill:#e8f5e8
+    style M fill:#e8f5e8
     style S fill:#e8f5e8
+    style T fill:#e8f5e8
+    style U fill:#e8f5e8
 ```
 
 ## Детальная схема обмена сообщениями
@@ -87,14 +91,6 @@ sequenceDiagram
         Merchant->>Kuper: notification: order.in_work
         Note over Kuper: Начинает поиск курьера
         
-        Note over Merchant: Собирает заказ
-        Merchant->>Kuper: notification: order.assembled
-        
-        Merchant->>Kuper: notification: order.ready_for_delivery + итоговый состав
-        Note over Kuper: Списывает фактическую сумму
-        
-        Kuper->>Merchant: webhook: order.paid
-        
         opt Курьер назначен
             Kuper->>Merchant: webhook: courier.assigned
         end
@@ -102,6 +98,14 @@ sequenceDiagram
         opt Курьер прибыл
             Kuper->>Merchant: webhook: courier.arrived
         end
+        
+        Note over Merchant: Собирает заказ
+        Merchant->>Kuper: notification: order.assembled
+        
+        Merchant->>Kuper: notification: order.ready_for_delivery + итоговый состав
+        Note over Kuper: Списывает фактическую сумму
+        
+        Kuper->>Merchant: webhook: order.paid
         
         Kuper->>Merchant: webhook: order.received
         Kuper->>Merchant: webhook: order.delivering
@@ -125,6 +129,76 @@ sequenceDiagram
     end
 ```
 
+## Схема для типа интеграции "Сборка мерчанта, самовывоз"
+
+```mermaid
+sequenceDiagram
+    participant Client as Клиент
+    participant Kuper as Купер
+    participant Merchant as Мерчант
+    
+    Client->>Kuper: Оформляет заказ
+    Kuper->>Merchant: webhook: order.created
+    
+    Merchant->>Kuper: response: {status: "created", number: "merchant_id"}
+    
+    opt Заказ из ресторана
+        Merchant->>Kuper: notification: order.accepted
+    end
+    
+    Merchant->>Kuper: notification: order.in_work
+    
+    Note over Merchant: Собирает заказ
+    Merchant->>Kuper: notification: order.assembled
+    
+    Merchant->>Kuper: notification: order.ready_for_delivery + итоговый состав
+    
+    Merchant->>Kuper: notification: order.pickup_code_created
+    Note over Kuper: Показывает код выдачи клиенту
+    
+    opt Оплата на стороне Купера
+        Note over Kuper: Списывает фактическую сумму
+        Kuper->>Merchant: webhook: order.paid
+    end
+    
+    Note over Client: Приходит за заказом
+    Merchant->>Kuper: notification: order.delivered + итоговый состав
+```
+
+## Схема для типа интеграции "Сборка мерчанта, доставка мерчанта"
+
+```mermaid
+sequenceDiagram
+    participant Client as Клиент
+    participant Kuper as Купер
+    participant Merchant as Мерчант
+    
+    Client->>Kuper: Оформляет заказ
+    Kuper->>Merchant: webhook: order.created
+    
+    Merchant->>Kuper: response: {status: "created", number: "merchant_id"}
+    
+    opt Заказ из ресторана
+        Merchant->>Kuper: notification: order.accepted
+    end
+    
+    Merchant->>Kuper: notification: order.in_work
+    
+    Note over Merchant: Собирает заказ
+    Merchant->>Kuper: notification: order.assembled
+    
+    Merchant->>Kuper: notification: order.ready_for_delivery + итоговый состав
+    Note over Kuper: Списывает фактическую сумму
+    
+    Kuper->>Merchant: webhook: order.paid
+    
+    Merchant->>Kuper: notification: order.estimated_delivery_time
+    Merchant->>Kuper: notification: order.delivering
+    
+    Note over Merchant: Доставляет заказ
+    Merchant->>Kuper: notification: order.delivered + итоговый состав
+```
+
 ## Ключевые моменты для реализации
 
 ### 1. Обработка вебхука order.created
@@ -137,25 +211,34 @@ sequenceDiagram
 - `order.assembled` - заказ собран  
 - `order.ready_for_delivery` - заказ готов + **итоговый состав обязателен**
 
-### 3. Отмена заказов
-- Можно отменить на любом этапе до доставки
+### 3. Порядок вебхуков от Купера (тип "доставка Купера")
+1. `courier.assigned`, `courier.arrived` - после `order.in_work`, до `order.paid`
+2. `order.paid` - после `order.ready_for_delivery`
+3. `order.received`, `order.delivering`, `order.delivered` - после `order.paid`
+
+### 4. Дополнительные уведомления по типам интеграции
+- **Самовывоз**: `order.pickup_code_created`, `order.delivered` от мерчанта
+- **Доставка мерчанта**: `order.estimated_delivery_time`, `order.delivering`, `order.delivered` от мерчанта
+
+### 5. Отмена заказов
+- Можно отменить на любом этапе до доставки (до статуса `shipping`)
 - Всегда указывать причину отмены
 - Если ошибка на этапе `order.created` - ответить успешно, затем `order.canceled`
 
-### 4. Аутентификация
+### 6. Аутентификация
 - Все запросы с Bearer Token или Basic Auth
 - Поддержать авторизацию входящих вебхуков от Купера
 
-### 5. Production endpoints
+### 7. Production endpoints
 - Уведомления: `https://merchant-api.sbermarket.ru/ofm/api/v1/notifications`
 - Авторизация: `https://merchant-api.sbermarket.ru/auth/token`
 
 ## Типы интеграций
 
 ### Поддерживаются 3 типа:
-1. **Сборка мерчанта, доставка Купера** (показана в схеме выше)
-2. **Сборка мерчанта, самовывоз** - дополнительно `order.pickup_code_created`, `order.delivered` от мерчанта
-3. **Сборка мерчанта, доставка мерчанта** - дополнительно `order.estimated_delivery_time`, `order.delivering`, `order.delivered` от мерчанта
+1. **Сборка мерчанта, доставка Купера** - Мерчант собирает, Купер доставляет
+2. **Сборка мерчанта, самовывоз** - Мерчант собирает, клиент забирает сам
+3. **Сборка мерчанта, доставка мерчанта** - Мерчант собирает и доставляет сам
 
 ---
 
