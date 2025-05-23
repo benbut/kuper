@@ -17,8 +17,8 @@ flowchart TD
     Start([Клиент оформляет заказ с доставкой]) --> A[Купер отправляет webhook: order.created]
     A --> B{Мерчант может обработать заказ?}
     
-    B -->|Да| C[Мерчант отвечает: {status: "created", number: "ID"}]
-    B -->|Нет| D[Мерчант отвечает: {status: "created"}, затем order.canceled]
+    B -->|Да| C[Мерчант отвечает: status created, number ID]
+    B -->|Нет| D[Мерчант отвечает: status created, затем order.canceled]
     
     C --> E{Заказ из ресторана?}
     E -->|Да| F[Мерчант отправляет: order.accepted]
@@ -86,7 +86,7 @@ sequenceDiagram
     Note over Merchant: Проверяет возможность обработки
     
     alt Заказ можно обработать
-        Merchant->>Kuper: response: {status: "created", number: "MERCHANT_ID"}
+        Merchant->>Kuper: response: status created, number MERCHANT_ID
         
         opt Заказ из ресторана
             Merchant->>Kuper: notification: order.accepted
@@ -126,7 +126,7 @@ sequenceDiagram
         Note over Kuper: Заказ завершен успешно
         
     else Заказ нельзя обработать
-        Merchant->>Kuper: response: {status: "created", number: "MERCHANT_ID"}
+        Merchant->>Kuper: response: status created, number MERCHANT_ID
         Merchant->>Kuper: notification: order.canceled + причина
         Note over Kuper: Возвращает средства клиенту
     end
@@ -411,7 +411,7 @@ Authorization: Bearer your-token
 
 ```
 1. order.created (webhook от Купера)
-2. response: {status: "created", number: "ID"}
+2. response: status created, number ID
 3. order.accepted (для ресторанов)
 4. order.in_work
 5. courier.assigned (опционально, до order.paid)
